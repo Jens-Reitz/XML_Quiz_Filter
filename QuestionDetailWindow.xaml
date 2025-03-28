@@ -1,0 +1,35 @@
+﻿<Window x:Class="QuizFilterApp.QuestionDetailWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Frage Details" Height="400" Width="600">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <StackPanel Orientation="Vertical" Grid.Row="0" Margin="0,0,0,10">
+            <TextBlock Text="Name:" FontWeight="Bold" />
+            <TextBlock Text="{Binding Name}" Margin="5,0,0,0" />
+        </StackPanel>
+        <StackPanel Orientation="Vertical" Grid.Row="1" Margin="0,0,0,10">
+            <TextBlock Text="Frage:" FontWeight="Bold" />
+            <TextBlock Text="{Binding QuestionText}" TextWrapping="Wrap" Margin="5,0,0,0" />
+        </StackPanel>
+        <StackPanel Orientation="Vertical" Grid.Row="2">
+            <TextBlock Text="Mögliche Antworten:" FontWeight="Bold" />
+            <ListBox ItemsSource="{Binding SubQuestions}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Orientation="Vertical" Margin="0,0,0,5">
+                            <!-- Wird angezeigt, wenn 'Text' einen Wert enthält -->
+                            <TextBlock Text="{Binding Text}" FontWeight="Bold" />
+                            <!-- Nur bei Matching-Fragen wird 'Answer' befüllt -->
+                            <TextBlock Text="{Binding Answer}" Margin="10,0,0,0" />
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+    </Grid>
+</Window>
