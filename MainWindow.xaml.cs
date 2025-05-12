@@ -135,20 +135,7 @@ namespace QuizFilterApp
                 return q.SearchText.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0;
             };
 
-            //view.Filter = item =>
-            //{
-            //    if (item is Question q)
-            //    {
-            //        return string.IsNullOrEmpty(filter) || q.SearchText.Contains(filter);
-            //    }
-            //    return false;
-            //};
             view.Refresh();
-        }
-
-        private string StripHtml(string input)
-        {
-            return string.IsNullOrEmpty(input) ? input : Regex.Replace(input, "<.*?>", string.Empty);
         }
 
         private void ClearList_Click(object sender, RoutedEventArgs e)
