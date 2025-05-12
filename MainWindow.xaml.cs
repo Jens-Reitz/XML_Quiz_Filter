@@ -6,11 +6,15 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Input;
 using System.Xml.Linq;
+using System.Collections.Generic;
 
 namespace QuizFilterApp
 {
     public partial class MainWindow : Window
     {
+        // HashSet zum Tracken bereits geladener Kommentar-IDs
+        private readonly HashSet<string> _seenQuestionIds = new HashSet<string>();
+
         public ObservableCollection<Question> Questions { get; set; } = new ObservableCollection<Question>();
 
         public MainWindow()
@@ -32,45 +36,49 @@ namespace QuizFilterApp
                 foreach (var file in openFileDialog.FileNames)
                 {
                     var doc = XDocument.Load(file);
-                    var questions = doc.Descendants("question").Select(q =>
+
+                    var questionElements = doc.Descendants("question");
+
+                    foreach (var q in questionElements)
                     {
+                        // Hole Kommentar direkt über der Frage
+                        string idComment = "";
                         var commentNode = q.NodesBeforeSelf().OfType<XComment>().LastOrDefault();
-                        string idComment = string.Empty;
                         if (commentNode != null && commentNode.Value.Trim().StartsWith("question:"))
                         {
                             idComment = commentNode.Value.Trim();
                         }
 
-                        string nameText = StripHtml(q.Element("name")?.Element("text")?.Value ?? string.Empty);
-                        string questionText = StripHtml(q.Element("questiontext")?.Element("text")?.Value ?? string.Empty);
-                        string answersText = string.Empty;
+                        // Prüfe auf Duplikat
+                        if (!string.IsNullOrEmpty(idComment) && _seenQuestionIds.Contains(idComment))
+                        {
+                            continue;
+                        }
 
-                        if (q.Descendants("subquestion").Any())
+                        // Wenn neue ID → hinzufügen zur Liste
+                        if (!string.IsNullOrEmpty(idComment))
                         {
-                            answersText = string.Join(" ", q.Descendants("subquestion").Select(sub =>
-                                (StripHtml(sub.Element("text")?.Value ?? string.Empty) + " " +
-                                 StripHtml(sub.Element("answer")?.Element("text")?.Value ?? string.Empty))
-                            ));
+                            _seenQuestionIds.Add(idComment);
                         }
-                        else // Andernfalls: direkt alle <answer>-Elemente (Multiple Choice, True/False)
-                        {
-                            answersText = string.Join(" ", q.Elements("answer").Select(a =>
-                                StripHtml(a.Element("text")?.Value ?? string.Empty)
-                            ));
-                        }
+
+                        // Beispiel: Extrahiere Daten aus Frage
+                        string nameText = q.Element("name")?.Element("text")?.Value ?? "";
+                        string questionText = q.Element("questiontext")?.Element("text")?.Value ?? "";
+                        string answersText = string.Join(", ",
+                            q.Elements("answer").Select(a => a.Element("text")?.Value ?? ""));
 
                         string searchText = (nameText + " " + questionText + " " + answersText).ToLower();
 
-                        return new Question
+                        var question = new Question
                         {
                             QuestionElement = new XElement(q),
                             Text = nameText,
                             SearchText = searchText,
                             IdComment = idComment
                         };
-                    }).ToList();
 
-                    questions.ForEach(q => Questions.Add(q));
+                        Questions.Add(question);
+                    }
                 }
             }
         }
@@ -116,12 +124,25 @@ namespace QuizFilterApp
             var view = System.Windows.Data.CollectionViewSource.GetDefaultView(QuestionsListBox.ItemsSource);
             view.Filter = item =>
             {
-                if (item is Question q)
-                {
-                    return string.IsNullOrEmpty(filter) || q.SearchText.Contains(filter);
-                }
-                return false;
+                if (!(item is Question q))
+                    return false;
+
+                // kein Filter-Text → alle anzeigen
+                if (string.IsNullOrEmpty(filter))
+                    return true;
+
+                // Suche in SearchText case-insensitive
+                return q.SearchText.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0;
             };
+
+            //view.Filter = item =>
+            //{
+            //    if (item is Question q)
+            //    {
+            //        return string.IsNullOrEmpty(filter) || q.SearchText.Contains(filter);
+            //    }
+            //    return false;
+            //};
             view.Refresh();
         }
 
@@ -145,6 +166,7 @@ namespace QuizFilterApp
         private bool _isSelected;
         private bool _isVisible = true;
         private string _searchText;
+        public string IdComment { get; set; }
 
         // Anzeigename (aus <name><text>)
         public string Text { get; set; }
@@ -170,8 +192,6 @@ namespace QuizFilterApp
             get => _isVisible;
             set { _isVisible = value; OnPropertyChanged("IsVisible"); }
         }
-
-        public string IdComment { get; set; }
 
         public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
 
