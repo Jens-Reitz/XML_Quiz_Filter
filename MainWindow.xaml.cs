@@ -41,40 +41,58 @@ namespace QuizFilterApp
 
                     foreach (var q in questionElements)
                     {
-                        // Hole Kommentar direkt über der Frage
+                        var typeAttr = (string)q.Attribute("type") ?? "";
+
+                        // hole Kommentar-ID
                         string idComment = "";
                         var commentNode = q.NodesBeforeSelf().OfType<XComment>().LastOrDefault();
                         if (commentNode != null && commentNode.Value.Trim().StartsWith("question:"))
-                        {
                             idComment = commentNode.Value.Trim();
-                        }
 
-                        // Prüfe auf Duplikat
-                        if (!string.IsNullOrEmpty(idComment) && _seenQuestionIds.Contains(idComment))
+                        // Kategorie und Duplikat-Filter
+                        if (typeAttr == "category")
+                        {
+                        }
+                        else if (!string.IsNullOrEmpty(idComment) && _seenQuestionIds.Contains(idComment))
                         {
                             continue;
                         }
 
-                        // Wenn neue ID → hinzufügen zur Liste
-                        if (!string.IsNullOrEmpty(idComment))
-                        {
+                        if (!string.IsNullOrEmpty(idComment) && typeAttr != "category")
                             _seenQuestionIds.Add(idComment);
+
+                        // Unterscheide Kategorie vs. normale Frage
+                        string nameText, searchText;
+                        bool isCategory = false;
+
+                        if (typeAttr == "category")
+                        {
+                            isCategory = true;
+                            // Text aus <category><text>
+                            nameText = $"Kategorie: {q.Element("category")?.Element("text")?.Value ?? "<unbekannt>"}";
+                            // Beschreibung optional aus <info><text>
+                            var infoText = q.Element("info")?.Element("text")?.Value ?? "";
+                            searchText = (nameText + " " + infoText).ToLower();
                         }
-
-                        // Beispiel: Extrahiere Daten aus Frage
-                        string nameText = q.Element("name")?.Element("text")?.Value ?? "";
-                        string questionText = q.Element("questiontext")?.Element("text")?.Value ?? "";
-                        string answersText = string.Join(", ",
-                            q.Elements("answer").Select(a => a.Element("text")?.Value ?? ""));
-
-                        string searchText = (nameText + " " + questionText + " " + answersText).ToLower();
+                        else
+                        {
+                            // Normal-Fall: Name + Frage + Antworten
+                            var nm = q.Element("name")?.Element("text")?.Value ?? "";
+                            var qt = q.Element("questiontext")?.Element("text")?.Value ?? "";
+                            var ans = string.Join(" ",
+                                           q.Elements("answer")
+                                            .Select(a => a.Element("text")?.Value ?? ""));
+                            nameText = nm;
+                            searchText = (nm + " " + qt + " " + ans).ToLower();
+                        }
 
                         var question = new Question
                         {
                             QuestionElement = new XElement(q),
                             Text = nameText,
                             SearchText = searchText,
-                            IdComment = idComment
+                            IdComment = idComment,
+                            IsCategory = isCategory
                         };
 
                         Questions.Add(question);
@@ -94,13 +112,22 @@ namespace QuizFilterApp
             if (saveFileDialog.ShowDialog() == true)
             {
                 var exportNodes = new List<XNode>();
-                foreach (var question in Questions.Where(q => q.IsSelected))
+                var selected = Questions.Where(q => q.IsSelected);
+
+                // Kategorien zuerst
+                foreach (var cat in selected.Where(q => q.IsCategory))
                 {
-                    if (!string.IsNullOrEmpty(question.IdComment))
-                    {
-                        exportNodes.Add(new XComment(question.IdComment));
-                    }
-                    exportNodes.Add(question.QuestionElement);
+                    if (!string.IsNullOrEmpty(cat.IdComment))
+                        exportNodes.Add(new XComment(cat.IdComment));
+                    exportNodes.Add(cat.QuestionElement);
+                }
+
+                // dann die normalen Fragen
+                foreach (var qn in selected.Where(q => !q.IsCategory))
+                {
+                    if (!string.IsNullOrEmpty(qn.IdComment))
+                        exportNodes.Add(new XComment(qn.IdComment));
+                    exportNodes.Add(qn.QuestionElement);
                 }
 
                 var exportDoc = new XElement("quiz", exportNodes);
@@ -140,10 +167,14 @@ namespace QuizFilterApp
 
         private void ClearList_Click(object sender, RoutedEventArgs e)
         {
-            var result = MessageBox.Show("Möchten Sie die Liste wirklich leeren?", "Bestätigung", MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (result == MessageBoxResult.Yes)
+            var result = MessageBox.Show("Möchten Sie die Liste wirklich leeren? Nur nicht ausgewählte Einträge werden gelöscht", "Bestätigung", MessageBoxButton.YesNo, MessageBoxImage.Question);
             {
-                Questions.Clear();
+                var toRemove = Questions.Where(q => !q.IsSelected).ToList();
+
+                foreach (var q in toRemove)
+                {
+                    Questions.Remove(q);
+                }
             }
         }
     }
@@ -154,6 +185,7 @@ namespace QuizFilterApp
         private bool _isVisible = true;
         private string _searchText;
         public string IdComment { get; set; }
+        public bool IsCategory { get; set; }
 
         // Anzeigename (aus <name><text>)
         public string Text { get; set; }
@@ -161,7 +193,7 @@ namespace QuizFilterApp
         // Enthält das komplette XML-Element der Frage
         public XElement QuestionElement { get; set; }
 
-        // Für die Filterung: Kombination aus Name, Frage und Antworten (alles in Kleinbuchstaben)
+        // Für die Filterung: Kombination aus Name, Frage und Antworten
         public string SearchText
         {
             get => _searchText;
