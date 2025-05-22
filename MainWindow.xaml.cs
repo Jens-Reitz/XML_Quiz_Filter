@@ -167,12 +167,25 @@ namespace QuizFilterApp
 
         private void ClearList_Click(object sender, RoutedEventArgs e)
         {
-            var result = MessageBox.Show("Möchten Sie die Liste wirklich leeren? Nur nicht ausgewählte Einträge werden gelöscht", "Bestätigung", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            var result = MessageBox.Show(
+                "Möchten Sie die Liste wirklich leeren? (Nur nicht ausgewählte Einträge werden gelöscht)",
+                "Bestätigung",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
             {
-                var toRemove = Questions.Where(q => !q.IsSelected).ToList();
+                var toRemove = Questions
+                    .Where(q => !q.IsSelected)
+                    .ToList();
 
                 foreach (var q in toRemove)
                 {
+                    if (!string.IsNullOrEmpty(q.IdComment))
+                    {
+                        _seenQuestionIds.Remove(q.IdComment);
+                    }
+
                     Questions.Remove(q);
                 }
             }
